@@ -1,55 +1,68 @@
+# Gradient Descent Assignment: UCI Real Estate Valuation Dataset
+# Dataset ID = 477
 import numpy as np
+from ucimlrepo import fetch_ucirepo
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
-# Loss Class
-class Loss:
-    def __init__(self):
-        pass
 
-    def mse(self, y_pred, y_true):
-        n = y_true.shape[0]
-        return np.sum((y_pred - y_true) ** 2) / n
+real_estate_valuation = fetch_ucirepo(id=477)
+X_raw = real_estate_valuation.data.features.values
+y_raw = real_estate_valuation.data.targets.values.ravel()
 
-    def compute_gradient(self, X, y_pred, y_true):
-        n = y_true.shape[0]
-        grad = (2 / n) * X.T @ (y_pred - y_true)
-        return grad
 
-# GradientDescent Optimizer Class
-class GradientDescent:
-    def __init__(self, learning_rate=0.01):
-        self.lr = learning_rate
+X_train, X_test, y_train, y_test = train_test_split(
+    X_raw, y_raw, test_size=0.2, random_state=42
+)
 
-    def update(self, weights, grad):
-        weights = weights - self.lr * grad
-        return weights
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
 
-# 模拟UCI格式数据集（离线，无需网络）
-def load_simulated_uci_data():
-    np.random.seed(0)
-    n_samples = 1500
-    X_raw = np.random.randn(n_samples,5)
-    y = (3*X_raw[:,0] + 2*X_raw[:,1] + X_raw[:,2] + np.random.randn(n_samples)*0.5).reshape(-1,1)
+m_train = X_train.shape[0]
+X_train = np.hstack([np.ones((m_train, 1)), X_train])
+m_test = X_test.shape[0]
+X_test = np.hstack([np.ones((m_test, 1)), X_test])
 
-    mean = np.mean(X_raw, axis=0)
-    std = np.std(X_raw, axis=0)
-    X_scaled = (X_raw - mean)/std
-    X = np.hstack([np.ones((X_scaled.shape[0],1)), X_scaled])
-    return X,y
 
-# 主程序
-if __name__ == "__main__":
-    X, y = load_simulated_uci_data()
-    num_features = X.shape[1]
-    w = np.zeros((num_features,1))
-    loss_calculator = Loss()
-    optimizer = GradientDescent(0.01)
-    epochs = 1500
-    for epoch in range(epochs):
-        y_pred = X @ w
-        loss = loss_calculator.mse(y_pred,y)
-        grad = loss_calculator.compute_gradient(X,y_pred,y)
-        w = optimizer.update(w,grad)
-        if epoch%200==0:
-            print(f"Iteration {epoch:4d} | MSE Loss = {loss:.4f}")
-    print("\n训练完成，权重：")
-    print(w)
+def compute_cost(X, y, theta):
+    m = len(y)
+    y_pred = X @ theta
+    cost = (1/(2*m)) * np.sum((y_pred - y)**2)
+    return cost
+
+
+def gradient_descent(X, y, theta, learning_rate, iterations):
+    m = len(y)
+    cost_history = []
+    for i in range(iterations):
+        y_pred = X @ theta
+        grad = (1/m) * X.T @ (y_pred - y)
+        theta = theta - learning_rate * grad
+        cost = compute_cost(X, y, theta)
+        cost_history.append(cost)
+    return theta, cost_history
+
+
+feature_num = X_train.shape[1]
+theta_init = np.zeros(feature_num)
+lr = 0.1
+iter_num = 2000
+
+theta_final, cost_hist = gradient_descent(X_train, y_train, theta_init, lr, iter_num)
+print("Training finished, final parameter theta:")
+print(theta_final)
+print(f"Final loss on training set: {cost_hist[-1]:.4f}")
+
+
+def evaluate_model(X_test, y_test, theta):
+    y_predict = X_test @ theta
+    mse = np.mean((y_predict - y_test)**2)
+    rmse = np.sqrt(mse)
+    print("\n======= Evaluation on unseen test dataset =======")
+    print(f"MSE = {mse:.4f}")
+    print(f"RMSE = {rmse:.4f}")
+    return y_predict
+
+
+y_pred_test = evaluate_model(X_test, y_test, theta_final)
